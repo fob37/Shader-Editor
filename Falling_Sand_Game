@@ -1,1 +1,115 @@
+#version 300 es
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+out vec4 COLOR;
+
+uniform int pointerCount;
+uniform vec3 pointers[10];
+uniform vec2 resolution;
+uniform sampler2D backbuffer;
+uniform int frame;
+
+void main(void) {
+vec2 uv = gl_FragCoord.xy / resolution;
+vec2 texel = 1. / resolution;
+vec3 empty = vec3(0.0);
+vec3 color = empty;
+
+vec3 up = texture(backbuffer, 
+
+	uv + vec2(0., texel.y)).rgb;
+
+vec3 down = texture(backbuffer, 
+
+	uv + vec2(0., -texel.y)).rgb;
+
+vec3 current = texture(backbuffer, uv).rgb;
+
+
+float mirror = 1.;
+
+if ((1793224213 >> (frame % 18)) % 2 == 0) //looks random
+
+	mirror = -1.;
+
+
+vec3 left = texture(backbuffer, 
+
+	uv + vec2(-texel.x * mirror, 0.)).rgb;
+
+vec3 leftup = texture(backbuffer, 
+
+	uv + vec2(-texel.x * mirror, texel.y)).rgb;
+
+vec3 rightdown = texture(backbuffer, 
+
+	uv + vec2(texel.x * mirror, -texel.y)).rgb;
+
+
+if (current != empty) {
+
+	// sand
+
+	if (gl_FragCoord.y < 1.
+
+		|| (down != empty
+
+		&& rightdown != empty)) {
+
+		//sitting
+
+		color = current 
+
+			- vec3(1./255., 1./255., 0.);
+
+	} else {
+
+		//fall away
+
+		color = empty;
+
+	}
+
+} else if (up != empty) {
+
+	// fall into
+
+	color = up - vec3(1./255., 0. , 0.);
+
+} else if (leftup != empty
+
+	&& left != empty) {
+
+	// slide into
+
+	color = leftup - vec3(1./255., 0. ,0.);
+
+}
+
+
+for (int n = 0; n < pointerCount; n++) {
+
+	if (frame % 1 == 0
+
+		&& int(pointers[n].x - gl_FragCoord.x) == 1
+
+		&& (int(pointers[n].y - gl_FragCoord.y) == 1
+
+		|| int(pointers[n].y - gl_FragCoord.y) == 3))
+
+		// 2 sands every 2 frames, 1 apart
+
+		color = vec3(1.);
+
+}
+
+
+COLOR = vec4(color, 1.0);
+
+
+}
 
