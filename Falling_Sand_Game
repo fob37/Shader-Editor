@@ -1,73 +1,102 @@
 #version 300 es
-#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
-#else
-precision mediump float;
-#endif
 
-out vec4 COLOR;
 
-uniform int pointerCount;
-uniform vec3 pointers[10];
+uniform float iTime;
+uniform int iFrame;
+uniform float mediaVolume;
+uniform vec2 touch;
 uniform vec2 resolution;
+uniform vec3 pointers[10];
+uniform int pointerCount;
 uniform sampler2D backbuffer;
-uniform int frame;
 
-void main(void) {
-    vec2 uv = gl_FragCoord.xy / resolution;
+out vec4 fragColor;
+
+const float fallSpeed = 1.0;
+
+bool isEmpty(vec3 c) {
+    return c == vec3(0.0);
+}
+
+bool isSand(vec3 c) {
+    return c.r > 0.9 && c.g > 0.9 && c.b < 0.1;
+}
+
+bool isWater(vec3 c) {
+    return c.b > 0.9 && c.r < 0.1 && c.g < 0.1;
+}
+
+bool isStone(vec3 c) {
+    return c.r > 0.1 && c.r < 0.3 &&
+           c.g > 0.1 && c.g < 0.3 &&
+           c.b > 0.1 && c.b < 0.3;
+}
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
     vec2 texel = 1.0 / resolution;
 
-    vec3 empty = vec3(0.0);
-    vec3 color = empty;
+    vec3 color = vec3(0.0);
     vec3 current = texture(backbuffer, uv).rgb;
 
-    vec3 up         = texture(backbuffer, uv + vec2(0.0, texel.y)).rgb;
-    vec3 down       = texture(backbuffer, uv + vec2(0.0, -texel.y)).rgb;
-    vec3 left       = texture(backbuffer, uv + vec2(-texel.x, 0.0)).rgb;
-    vec3 leftUp     = texture(backbuffer, uv + vec2(-texel.x, texel.y)).rgb;
-    vec3 rightDown  = texture(backbuffer, uv + vec2(texel.x, -texel.y)).rgb;
+    // Neighbor sampling
+    vec3 up = texture(backbuffer, uv + vec2(0.0, texel.y * fallSpeed)).rgb;
+    vec3 down = texture(backbuffer, uv - vec2(0.0, -texel.y * fallSpeed)).rgb;
+    vec3 left = texture(backbuffer, uv - vec2(-texel.x, 0.0)).rgb;
+    vec3 right = texture(backbuffer, uv + vec2(texel.x, 0.0)).rgb;
+    vec3 leftUp = texture(backbuffer, uv + vec2(-texel.x, texel.y * fallSpeed)).rgb;
+    vec3 rightDown = texture(backbuffer, uv + vec2(texel.x, -texel.y * fallSpeed)).rgb;
 
-    float mirror = 1.0;
-    if ((1793224213 >> (frame % 18)) % 2 == 0) {
-        mirror = -1.0;
-    }
-
-    // Apply mirror to directions
-    left      = texture(backbuffer, uv + vec2(-texel.x * mirror, 0.0)).rgb;
-    leftUp    = texture(backbuffer, uv + vec2(-texel.x * mirror, texel.y)).rgb;
-    rightDown = texture(backbuffer, uv + vec2(texel.x * mirror, -texel.y)).rgb;
-
-    // Sand movement logic
-    if (current != empty) {
-        bool atBottom = gl_FragCoord.y < 1.0;
-        bool blockedBelow = down != empty && rightDown != empty;
-
+    // Movement
+    if (isSand(current)) {
+        bool atBottom = gl_FragCoord.y < 0.4;
+        bool blockedBelow = !isEmpty(down) && !isEmpty(rightDown);
         if (atBottom || blockedBelow) {
-            // Sand settles and fades slightly
             color = current - vec3(1.0 / 255.0, 1.0 / 255.0, 0.0);
         } else {
-            // Sand falls
-            color = empty;
+            color = vec3(1.0,1.0,0.0);
         }
 
-    } else if (up != empty) {
-        // Sand falls down from above
-        color = up - vec3(1.0 / 255.0, 0.0, 0.0);
+    } else if (isWater(current)) {
+        if (isEmpty(down)) {
+            color = vec3(0.0,0.0,1.0);
+        } else if (isEmpty(left)) {
+            color = vec3(0.0,0.0,1.0);
+        } else if (isEmpty(right)) {
+            color = vec3(0.0,0.0,1.0);
+        } else {
+            color = current - vec3(0.0, 0.0, 1.0 / 255.0);
+        }
 
-    } else if (leftUp != empty && left != empty) {
-        // Sand slides diagonally
-        color = leftUp - vec3(1.0 / 255.0, 0.0, 0.0);
-    }
+    } else if (isStone(current)) {
+        color = current;
 
-    // Pointer interaction: drop sand
-    for (int n = 0; n < pointerCount; n++) {
-        int dx = int(pointers[n].x - gl_FragCoord.x);
-        int dy = int(pointers[n].y - gl_FragCoord.y);
-
-        if (frame % 1 == 0 && dx == 1 && (dy == 1 || dy == 3)) {
-            color = vec3(1.0);
+    } else {
+        if (isSand(up)) {
+            color = up - vec3(1.0 / 255.0, 0.0, 0.0);
+        } else if (isWater(up)) {
+            color = up - vec3(0.0, 0.0, 1.0 / 255.0);
+        } else if (isSand(leftUp) && isEmpty(down) && !isEmpty(left)) {
+            color = leftUp - vec3(1.0 / 255.0, 0.0, 0.0);
         }
     }
 
-    COLOR = vec4(color, 1.0);
+  float tapSize = min(resolution.x, resolution.y) * 0.01;
+	for (int n = 0; n < pointerCount; ++n) {
+		if (distance(pointers[n].xy, gl_FragCoord.xy) < tapSize) {
+			//do stuf when click
+			if (pointerCount == 1) {
+                color = vec3(1.0, 1.0, 0.0); // Sand
+            } else if (pointerCount == 2) {
+                color = vec3(0.0, 0.0, 1.0); // Water
+            } else if (pointerCount == 3) {
+                color = vec3(0.2, 0.2, 0.2); // Stone
+            }
+			break;
+		}
+
+	}
+
+    fragColor = vec4(color, 1.0);
 }
