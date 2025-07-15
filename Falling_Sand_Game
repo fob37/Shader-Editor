@@ -42,15 +42,15 @@ void main() {
 
     // Neighbor sampling
     vec3 up = texture(backbuffer, uv + vec2(0.0, texel.y * fallSpeed)).rgb;
-    vec3 down = texture(backbuffer, uv - vec2(0.0, -texel.y * fallSpeed)).rgb;
+    vec3 down = texture(backbuffer, uv - vec2(0.0, texel.y * fallSpeed)).rgb;
     vec3 left = texture(backbuffer, uv - vec2(-texel.x, 0.0)).rgb;
     vec3 right = texture(backbuffer, uv + vec2(texel.x, 0.0)).rgb;
     vec3 leftUp = texture(backbuffer, uv + vec2(-texel.x, texel.y * fallSpeed)).rgb;
-    vec3 rightDown = texture(backbuffer, uv + vec2(texel.x, -texel.y * fallSpeed)).rgb;
+    vec3 rightDown = texture(backbuffer, uv + vec2(texel.x, texel.y * fallSpeed)).rgb;
 
     // Movement
     if (isSand(current)) {
-        bool atBottom = gl_FragCoord.y < 0.4;
+        bool atBottom = uv.y <= texel.y;
         bool blockedBelow = !isEmpty(down) && !isEmpty(rightDown);
         if (atBottom || blockedBelow) {
             color = current - vec3(1.0 / 255.0, 1.0 / 255.0, 0.0);
@@ -59,15 +59,15 @@ void main() {
         }
 
     } else if (isWater(current)) {
-        if (isEmpty(down)) {
-            color = vec3(0.0,0.0,1.0);
-        } else if (isEmpty(left)) {
-            color = vec3(0.0,0.0,1.0);
-        } else if (isEmpty(right)) {
-            color = vec3(0.0,0.0,1.0);
-        } else {
-            color = current - vec3(0.0, 0.0, 1.0 / 255.0);
-        }
+            float rand = fract(sin(dot(uv.xy, vec2(12.9898,78.233))) * 43758.5453);
+    if (isEmpty(down)) {
+    		color = vec3(0.0,0.0,1.0);
+		} else if (rand < 0.5 && isEmpty(left)) {
+    		color = vec3(0.0,0.0,1.0);
+		} else if (isEmpty(right)) {
+    		color = vec3(0.0,0.0,1.0);
+		}
+
 
     } else if (isStone(current)) {
         color = current;
